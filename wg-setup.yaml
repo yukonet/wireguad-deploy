@@ -1,0 +1,55 @@
+---
+####################################
+#ANSIBLE PLAYBOOK FOR WG INSTALLING#
+####################################
+#
+#
+
+- name: "Install Wireguard"
+  hosts: all
+  remote_user: root
+
+  tasks:
+  - name: "Install curl"
+    ansible.builtin.apt:
+      name: curl
+      state: latest
+
+   - name: "Install wireguard"
+     ansible.builtin.apt:
+       name: curl
+       state: latest
+
+   - name: "Install qrencode"
+     ansible.builtin.apt:
+       name: qrencode
+       state: latest
+
+   - name: "Create server keys"
+     ansible.builtin.shell:
+       cmd: wg genkey | tee /etc/wireguard/server.priv | wg pubkey > /etc/wireguard/server.pub
+     args:
+       executable: /bin/bash
+
+   - name: "Create client keys"
+     ansible.builtin.shell:
+       cmd: wg genkey | tee /etc/wireguard/client.priv | wg pubkey > /etc/wireguard/client.pub
+     args:
+       executable: /bin/bash
+
+   - name: "Create server config file"
+     copy:
+       dest: "/etc/wireguard/wg0.conf"
+       content: |
+           [Interface]
+           PrivateKey = {{lookup('file', '/etc/wireguard/server.priv') }}
+           Address = 10.0.0.1/24
+           PostUp = iptables -A FORWARD -i wg0 -j ACCEPT; iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE; echo 1 > /proc/sys/net/ipv4/ip_forward
+           PostDown = iptables -D FORWARD -i wg0 -j ACCEPT; iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE; echo 0 > /proc/sys/net/ipv4/ip_forward
+           ListenPort = 51820
+
+
+           [Peer]
+           PublicKey = {{lookup('file', '/etc/wireguard/client.pub') }}
+           AllowedIPs = 10.0.0.2/32
+
