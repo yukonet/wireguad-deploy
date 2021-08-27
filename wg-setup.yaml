@@ -25,21 +25,22 @@
       state: latest
 
   - name: "Create server keys"
-    ansible.builtin.shell:
-      cmd: wg genkey | tee /etc/wireguard/server.priv | wg pubkey > /etc/wireguard/server.pub
-    args:
-      executable: /bin/bash
+    shell: wg genkey | tee /etc/wireguard/server.priv | wg pubkey > /etc/wireguard/server.pub
+    #become: true
+    #    args:
+    #     executable: /bin/bash
 
   - name: "Create client keys"
-    ansible.builtin.shell:
-      cmd: wg genkey | tee /etc/wireguard/client.priv | wg pubkey > /etc/wireguard/client.pub
+    shell: wg genkey | tee /etc/wireguard/client.priv | wg pubkey > /etc/wireguard/client.pub
     args:
       executable: /bin/bash
 
   - name: "Get public IP address"
-    ansible.builtin.shell: /bin/curl ifconfig.me
-    register: public_ip
-    ignore_errors: true
+    get_url: 
+      url: http://ifconfig.me
+      http_agent: curl
+      dest: /etc/wireguard/public_ip
+    
        
   - name: "Create server config file"
     copy:
@@ -70,16 +71,16 @@
           [Peer]
           PublicKey = {{lookup('file', '/etc/wireguard/server.pub') }}
           AllowedIPs = 0.0.0.0/0
-          Endpoint = {{ public_ip }}:51820" 
+          Endpoint = {{lookup('file', '/etc/wireguard/public_ip')}}:51820 
 
   - name: "Start WireGuard"
-    ansible.builtin.shell:
+    shell:
       cmd: systemctl start wg-quick@wg0
     args:
       executable: /bin/bash
 
   - name: "Enable WireGuard"
-    ansible.builtin.shell:
+    shell:
       cmd: systemctl enable wg-quick@wg0
     args:
       executable: /bin/bash
