@@ -8,11 +8,14 @@
   hosts: all
   remote_user: root
 
+  vars_prompt:
+
+  - name: "interface"
+    prompt: "What interface should I use?"
+    default: "eth0"
+    private: no
+
   tasks:
-  - name: "Install curl"
-    ansible.builtin.apt:
-      name: curl
-      state: latest
 
   - name: "Install wireguard"
     ansible.builtin.apt:
@@ -26,9 +29,8 @@
 
   - name: "Create server keys"
     shell: wg genkey | tee /etc/wireguard/server.priv | wg pubkey > /etc/wireguard/server.pub
-    #become: true
-    #    args:
-    #     executable: /bin/bash
+    args:
+      executable: /bin/bash
 
   - name: "Create client keys"
     shell: wg genkey | tee /etc/wireguard/client.priv | wg pubkey > /etc/wireguard/client.pub
@@ -39,8 +41,7 @@
     get_url: 
       url: http://ifconfig.me
       http_agent: curl
-      dest: /etc/wireguard/public_ip
-    
+      dest: /tmp/public_ip    
        
   - name: "Create server config file"
     copy:
@@ -49,8 +50,8 @@
           [Interface]
           PrivateKey = {{lookup('file', '/etc/wireguard/server.priv') }}
           Address = 10.0.0.1/24
-          PostUp = iptables -A FORWARD -i wg0 -j ACCEPT; iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE; echo 1 > /proc/sys/net/ipv4/ip_forward
-          PostDown = iptables -D FORWARD -i wg0 -j ACCEPT; iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE; echo 0 > /proc/sys/net/ipv4/ip_forward
+          PostUp = iptables -A FORWARD -i wg0 -j ACCEPT; iptables -t nat -A POSTROUTING -o {{ interafce }} -j MASQUERADE; echo 1 > /proc/sys/net/ipv4/ip_forward
+          PostDown = iptables -D FORWARD -i wg0 -j ACCEPT; iptables -t nat -D POSTROUTING -o {{ interface }} -j MASQUERADE; echo 0 > /proc/sys/net/ipv4/ip_forward
           ListenPort = 51820
 
 
@@ -71,7 +72,7 @@
           [Peer]
           PublicKey = {{lookup('file', '/etc/wireguard/server.pub') }}
           AllowedIPs = 0.0.0.0/0
-          Endpoint = {{lookup('file', '/etc/wireguard/public_ip')}}:51820 
+          Endpoint = {{lookup('file', '/tmp/public_ip')}}:51820 
 
   - name: "Start WireGuard"
     shell:
