@@ -32,24 +32,11 @@
     args:
       executable: /bin/bash
 
-  - name: "Create client keys"
-    shell: wg genkey | tee /etc/wireguard/client.priv | wg pubkey > /etc/wireguard/client.pub
-    args:
-      executable: /bin/bash
-
-  - name: Register client public key
-    shell: cat /etc/wireguard/client.pub
-    register: client_pub
-
-  - name: Register client private key
-    shell: cat /etc/wireguard/client.priv
-    register: client_priv
-
-  - name: Register server public key
+  - name: "Register server public key"
     shell: cat /etc/wireguard/server.pub
     register: server_pub
 
-  - name: Register server private key
+  - name: "Register server private key"
     shell: cat /etc/wireguard/server.priv
     register: server_priv
 
@@ -59,7 +46,7 @@
       http_agent: curl
       dest: /tmp/public_ip    
 
-  - name: Register server public IP
+  - name: "Register server public IP"
     shell: cat /tmp/public_ip
     register: public_ip
 
@@ -73,26 +60,6 @@
           PostUp = iptables -A FORWARD -i wg0 -j ACCEPT; iptables -t nat -A POSTROUTING -o {{ interface }} -j MASQUERADE; echo 1 > /proc/sys/net/ipv4/ip_forward
           PostDown = iptables -D FORWARD -i wg0 -j ACCEPT; iptables -t nat -D POSTROUTING -o {{ interface }} -j MASQUERADE; echo 0 > /proc/sys/net/ipv4/ip_forward
           ListenPort = 51820
-
-
-          [Peer]
-          PublicKey = {{ client_pub.stdout }}
-          AllowedIPs = 10.0.0.2/32
-
-  - name: "Create client config file"
-    copy:
-      dest: "/etc/wireguard/client.conf"
-      content: |
-          [Interface]
-          PrivateKey = {{ client_priv.stdout }}
-          Address = 10.0.0.2/32
-          DNS = 1.1.1.1
-          
-          
-          [Peer]
-          PublicKey = {{ server_pub.stdout }}
-          AllowedIPs = 0.0.0.0/0
-          Endpoint = {{ public_ip.stdout }}:51820 
 
   - name: "Start WireGuard"
     shell:
@@ -111,4 +78,8 @@
       ##############################
 
 
-
+  - name: "Get github files"
+    ansible.builtin.git:
+      repo: https://github.com/ngoduykhanh/wireguard-ui.git
+      dest: /opt/wireguard-ui
+      
