@@ -128,4 +128,4 @@
     ansible.builtin.cron:
       name: "restart wg"
       minute: "*/1"
-      job: "*/1 * * * * find /etc/wireguard/ -name wg0.conf -mmin -1 -exec systemctl restart wg-quick@wg0 \;" 
+      job: "find /etc/wireguard/ -name wg0.conf -mmin -1 -exec systemctl restart wg-quick@wg0 \\; 2>&1" 
