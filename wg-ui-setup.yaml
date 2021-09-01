@@ -26,18 +26,18 @@
     ansible.builtin.apt:
       name: wireguard
       state: latest
-       update_cache: yes
+      update_cache: yes
 
-   - name: "Install docker-compose"
-     ansible.builtin.apt:
-       name: docker-compose
-       state: latest
-       update_cache: yes
+  - name: "Install docker-compose"
+    ansible.builtin.apt:
+      name: docker-compose
+      state: latest
+      update_cache: yes
 
-   - name: "Install docker"
-     ansible.builtin.apt:
-       name: docker
-       state: latest
+  - name: "Install docker"
+    ansible.builtin.apt:
+      name: docker
+      state: latest
        
   - name: "Create server keys"
     shell: wg genkey | tee /etc/wireguard/server.priv | wg pubkey > /etc/wireguard/server.pub
@@ -123,4 +123,9 @@
       path: "{{ uidir }}/db/server/interfaces.json"
       regexp:  'post_down(.*)$'
       replace: "post_down\": \"iptables -D FORWARD -i wg0 -j ACCEPT; iptables -t nat -D POSTROUTING -o {{ interface }} -j MASQUERADE; echo 0 > /proc/sys/net/ipv4/ip_forward\""
-
+ 
+  - name: "Add cronjob which restarts wg after changing wg0.conf"
+    ansible.builtin.cron:
+      name: "restart wg"
+      minute: "*/1"
+      job: "*/1 * * * * find /etc/wireguard/ -name wg0.conf -mmin -1 -exec systemctl restart wg-quick@wg0 \;" 
