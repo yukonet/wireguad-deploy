@@ -84,6 +84,12 @@
       cmd: systemctl enable wg-quick@wg0
     args:
       executable: /bin/bash
+
+  - name: "Disable ufw"
+    shell:
+      cmd: ufw disable
+    args:
+      executable: /bin/bash
     
       ##############################
       # adding UI to the wireguard #
