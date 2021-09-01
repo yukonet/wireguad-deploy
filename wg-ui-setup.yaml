@@ -15,16 +15,16 @@
     default: "eth0"
     private: no
 
+  - name: "uidir"
+    prompt: "Set directory to store UI files or use default (recommended)"
+    default: "/opt/wireguard-ui"
+    private: no
+
   tasks:
 
   - name: "Install wireguard"
     ansible.builtin.apt:
       name: wireguard
-      state: latest
-
-  - name: "Install qrencode"
-    ansible.builtin.apt:
-      name: qrencode
       state: latest
 
   - name: "Create server keys"
@@ -80,6 +80,35 @@
 
   - name: "Get github files"
     ansible.builtin.git:
-      repo: https://github.com/ngoduykhanh/wireguard-ui.git
-      dest: /opt/wireguard-ui
-      
+      repo: "https://github.com/ngoduykhanh/wireguard-ui.git"
+      dest: "{{ uidir }}/"
+     
+  - name: "First UI start for ctreating UI config files"
+    shell: docker-compose up -d
+    args: 
+      chdir: "{{ uidir }}/"
+
+  - name: "Change server private key in the UI config file"
+    replace:
+      path: "{{ uidir }}/db/server/keypair.json"
+      regexp: 'private_key(.*)$'
+      replace: "private_key\": \"{{ server_priv.stdout }}\"," 
+
+  - name: "Change server public key in the UI config file"
+    replace:
+      path: "{{ uidir }}/db/server/keypair.json"
+      regexp:  'public_key(.*)$'
+      replace: "public_key\": \"{{ server_pub.stdout }}\","
+
+  - name: "Change postup script in server's config"
+    replace:
+      path: "{{ uidir }}/db/server/interfaces.json"
+      regexp: 'post_up(.*)$'
+      replace: "post_up\": \"iptables -A FORWARD -i wg0 -j ACCEPT; iptables -t nat -A POSTROUTING -o {{ interface }} -j MASQUERADE; echo 1 > /proc/sys/net/ipv4/ip_forward\","
+
+  - name: "Change postdown script in server's config"
+    replace:
+      path: "{{ uidir }}/db/server/interfaces.json"
+      regexp:  'post_down(.*)$'
+      replace: "post_down\": \"iptables -D FORWARD -i wg0 -j ACCEPT; iptables -t nat -D POSTROUTING -o {{ interface }} -j MASQUERADE; echo 0 > /proc/sys/net/ipv4/ip_forward\","
+
