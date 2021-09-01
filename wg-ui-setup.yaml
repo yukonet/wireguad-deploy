@@ -26,7 +26,19 @@
     ansible.builtin.apt:
       name: wireguard
       state: latest
+       update_cache: yes
 
+   - name: "Install docker-compose"
+     ansible.builtin.apt:
+       name: docker-compose
+       state: latest
+       update_cache: yes
+
+   - name: "Install docker"
+     ansible.builtin.apt:
+       name: docker
+       state: latest
+       
   - name: "Create server keys"
     shell: wg genkey | tee /etc/wireguard/server.priv | wg pubkey > /etc/wireguard/server.pub
     args:
@@ -110,5 +122,5 @@
     replace:
       path: "{{ uidir }}/db/server/interfaces.json"
       regexp:  'post_down(.*)$'
-      replace: "post_down\": \"iptables -D FORWARD -i wg0 -j ACCEPT; iptables -t nat -D POSTROUTING -o {{ interface }} -j MASQUERADE; echo 0 > /proc/sys/net/ipv4/ip_forward\","
+      replace: "post_down\": \"iptables -D FORWARD -i wg0 -j ACCEPT; iptables -t nat -D POSTROUTING -o {{ interface }} -j MASQUERADE; echo 0 > /proc/sys/net/ipv4/ip_forward\""
 
