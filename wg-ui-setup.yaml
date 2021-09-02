@@ -173,6 +173,17 @@
       content: |
         admin:{{ nginx_pass | password_hash }}
 
+  - name: "Change admin-ui login"
+    replace:
+      path: "{{ uidir }}/db/server/users.json"
+      regexp: 'username(.*)$'
+      replace: "username\": \"admin\","
+
+  - name: "Change admin-ui password"
+    replace:
+      path: "{{ uidir }}/db/server/users.json"
+      regexp: 'password(.*)$'
+      replace: "password\": \"{{ nginx_pass }}\""
 
   - name: "Create proxy config file"
     copy:
@@ -180,6 +191,12 @@
       content: |
         upstream backend {
             server 127.0.0.1:5000;
+        }
+
+        server {
+            listen 80 default_server;    
+            server_name _;        
+            return 301 https://$host$request_uri;
         }
         
         server {
@@ -224,6 +241,12 @@
       cmd: systemctl enable nginx
     args:
       executable: /bin/bash        
+
+  - name: "Restart nginx"
+    shell:
+      cmd: systemctl restart nginx
+    args:
+      executable: /bin/bash   
 
   - set_fact:
       description: |
