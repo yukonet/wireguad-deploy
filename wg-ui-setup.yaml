@@ -36,7 +36,7 @@
 
   - name: "Install docker"
     ansible.builtin.apt:
-      name: docker
+      name: docker.io
       state: latest
        
   - name: "Create server keys"
@@ -247,6 +247,36 @@
       cmd: systemctl restart nginx
     args:
       executable: /bin/bash   
+
+  - name: "Install iptables-persisistent"
+    ansible.builtin.apt:
+      name: iptables-persistent
+      state: latest
+  
+  - name: Allow all connections from localhost
+    shell:
+      cmd: iptables -A INPUT -s 127.0.0.1/32 -j ACCEPT
+    args:
+      executable: /bin/bash
+
+  - name: Drop all connections to 5000 port
+    shell:
+      cmd: iptables -A INPUT -p tcp -m tcp --dport 5000 -j DROP
+    args:
+      executable: /bin/bash
+
+  - name: Save iptables rules to persistent file
+    shell:
+      cmd: iptables-save > /etc/iptables_rules_v4
+    args:
+      executable: /bin/bash
+
+  - name: "Add cronjob which load iptables-rules after restart"
+    ansible.builtin.cron:
+      name: "load iptables-rules after restart"
+      special_time: reboot
+      job: "iptables-restore < /etc/iptables_rules_v4"
+
 
   - set_fact:
       description: |
