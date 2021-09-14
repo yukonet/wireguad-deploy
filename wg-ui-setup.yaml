@@ -277,6 +277,12 @@
       special_time: reboot
       job: "iptables-restore < /etc/iptables_rules_v4"
 
+  - name: "Add cronjob autostart docker "
+    ansible.builtin.cron:
+      name: "start docker image"
+      special_time: reboot
+      job: "docker start wgui"
+
 
   - set_fact:
       description: |
