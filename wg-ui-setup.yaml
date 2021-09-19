@@ -275,14 +275,49 @@
     ansible.builtin.cron:
       name: "load iptables-rules after restart"
       special_time: reboot
-      job: "iptables-restore < /etc/iptables_rules_v4"
+      job: "/sbin/iptables-restore < /etc/iptables_rules_v4"
 
-  - name: "Add cronjob autostart docker "
-    ansible.builtin.cron:
-      name: "start docker image"
-      special_time: reboot
-      job: "docker start wgui"
+  - name: "Update docker for autostart"
+    shell:
+      cmd: docker update --restart=always wgui
+    args:
+      executable: /bin/bash
 
+  - name: "Install monitorix"
+    ansible.builtin.apt:
+      name: monitorix
+      state: latest
+      update_cache: yes
+
+  - name: "Change monitorix config file"
+    replace:
+      path: "/etc/monitorix/monitorix.conf"
+      regexp: "{{ item }}(.*)$"
+      replace: "{{ item }} = y"
+    with_items:
+      - 'nginx'
+      - 'du'
+      - 'process'
+      - 'mail'
+      - 'fail2ban'
+
+  - name: "Change monitorix config file (Change hostname)"
+    replace:
+      path: "/etc/monitorix/monitorix.conf"
+      regexp: 'title(.*)$'
+      replace: "title = Monitoring"
+      
+  - name: "Change monitorix config file (enable htpasswd)"
+    replace:
+      path: "/etc/monitorix/monitorix.conf"
+      regexp: '(<auth>[\s\S]*)</auth>'
+      replace: "title = Monitoring"     
+      replace: |-
+        <auth>
+                enabled = y
+                msg = Monitorix: Restricted access
+                htpasswd = /etc/nginx/passwdfile
+        </auth>
 
   - set_fact:
       description: |
@@ -290,6 +325,7 @@
         Your VPN server ready!
         
         URL: https://{{  public_ip.stdout }}/
+        Monitoring: https://{{  public_ip.stdout }}:8080/monitorix
         User: admin
         Password: {{ nginx_pass }}
 
