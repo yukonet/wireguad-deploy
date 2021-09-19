@@ -130,6 +130,12 @@
       regexp:  'post_down(.*)$'
       replace: "post_down\": \"iptables -D FORWARD -i wg0 -j ACCEPT; iptables -t nat -D POSTROUTING -o {{ interface }} -j MASQUERADE; echo 0 > /proc/sys/net/ipv4/ip_forward\""
  
+  - name: "Change IP in server's config"
+    replace:
+      path: "{{ uidir }}/db/server/interfaces.json"
+      regexp:  '([0-9])\.([0-9])\.([0-9])\.([0-9])(.*)$'
+      replace: "10.0.0.1/24" 
+
   - name: "Add cronjob which restarts wg after changing wg0.conf"
     ansible.builtin.cron:
       name: "restart wg"
@@ -195,8 +201,18 @@
 
         server {
             listen 80 default_server;    
-            server_name _;        
-            return 301 https://$host$request_uri;
+            server_name _;   
+
+            location nginx_status{
+                stub_status on;
+	              access_log   off;
+	              allow 127.0.0.1; 
+	              deny all;
+            }
+
+            location / {
+                return 301 https://$host$request_uri;
+            }
         }
         
         server {
@@ -287,7 +303,7 @@
   - name: "Change monitorix config file"
     replace:
       path: "/etc/monitorix/monitorix.conf"
-      regexp: "{{ item }}(.*)$"
+      regexp: "{{ item }} (.*)$"
       replace: "{{ item }} = y"
     with_items:
       - 'nginx'
@@ -306,7 +322,6 @@
     replace:
       path: "/etc/monitorix/monitorix.conf"
       regexp: '(<auth>[\s\S]*)</auth>'
-      replace: "title = Monitoring"     
       replace: |-
         <auth>
                 enabled = y
