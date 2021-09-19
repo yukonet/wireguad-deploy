@@ -235,11 +235,13 @@
     shell: unlink /etc/nginx/sites-enabled/default
     args:
       executable: /bin/bash
+    ignore_errors: yes
 
   - name: "Link proxy nginx config"
     shell: ln -s /etc/nginx/sites-available/proxy.conf /etc/nginx/sites-enabled/proxy
     args:
       executable: /bin/bash
+    ignore_errors: yes
 
   - name: "Start nginx"
     shell:
@@ -293,7 +295,6 @@
     ansible.builtin.apt:
       name: monitorix
       state: latest
-      update_cache: yes
 
   - name: "Change monitorix config file (configuring graphs)"
     replace:
