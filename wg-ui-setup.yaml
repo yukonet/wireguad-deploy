@@ -247,11 +247,6 @@
       cmd: systemctl restart nginx
     args:
       executable: /bin/bash   
-
-  - name: "Install iptables-persisistent"
-    ansible.builtin.apt:
-      name: iptables-persistent
-      state: latest
   
   - name: Allow all connections from localhost
     shell:
