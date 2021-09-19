@@ -90,11 +90,6 @@
       cmd: ufw disable
     args:
       executable: /bin/bash
-    
-      ##############################
-      # adding UI to the wireguard #
-      ##############################
-
 
   - name: "Get github files"
     ansible.builtin.git:
@@ -134,7 +129,7 @@
     replace:
       path: "{{ uidir }}/db/server/interfaces.json"
       regexp:  '([0-9]+)\.([0-9]+)\.([0-9]+)\.([0-9]+)(.*)$'
-      replace: "10.0.0.1/24" 
+      replace: "10.0.0.1/24\"" 
 
   - name: "Add cronjob which restarts wg after changing wg0.conf"
     ansible.builtin.cron:
@@ -300,34 +295,84 @@
       state: latest
       update_cache: yes
 
-  - name: "Change monitorix config file"
+  - name: "Change monitorix config file (configuring graphs)"
     replace:
       path: "/etc/monitorix/monitorix.conf"
-      regexp: "{{ item }} (.*)$"
-      replace: "{{ item }} = y"
-    with_items:
-      - 'nginx'
-      - 'du'
-      - 'process'
-      - 'mail'
-      - 'fail2ban'
+      regexp: '(<graph_enable>[\s\S]*)</graph_enable>'
+      replace: |
+        <graph_enable>
+                system          = y
+                kern            = y
+                proc            = y
+                hptemp          = n
+                lmsens          = n
+                gensens         = n
+                ipmi            = n
+                ambsens         = n
+                nvidia          = n
+                disk            = n
+                fs              = y
+                zfs             = n
+                du              = y
+                net             = y
+                netstat         = y
+                tc              = n
+                libvirt         = n
+                process         = n
+                serv            = y
+                mail            = n
+                port            = y
+                user            = y
+                ftp             = n
+                apache          = n
+                nginx           = y
+                lighttpd        = n
+                mysql           = n
+                mongodb         = n
+                varnish         = n
+                pagespeed       = n
+                squid           = n
+                nfss            = n
+                nfsc            = n
+                bind            = n
+                unbound         = n
+                ntp             = n
+                chrony          = n
+                fail2ban        = y
+                icecast         = n
+                raspberrypi     = n
+                phpapc          = n
+                memcached       = n
+                phpfpm          = n
+                apcupsd         = n
+                nut             = n
+                wowza           = n
+                int             = y
+                verlihub        = n
+        </graph_enable>
 
   - name: "Change monitorix config file (Change hostname)"
     replace:
       path: "/etc/monitorix/monitorix.conf"
-      regexp: 'title(.*)$'
-      replace: "title = Monitoring"
+      regexp: '^title(.*)$'
+      replace: "title = Monitoring\nenable_hourly_view = y"
       
   - name: "Change monitorix config file (enable htpasswd)"
     replace:
       path: "/etc/monitorix/monitorix.conf"
       regexp: '(<auth>[\s\S]*)</auth>'
-      replace: |-
+      replace: |
         <auth>
                 enabled = y
                 msg = Monitorix: Restricted access
                 htpasswd = /etc/nginx/passwdfile
         </auth>
+
+  - name: "Restart monitorix"
+    shell:
+      cmd: systemctl restart monitorix
+    args:
+      executable: /bin/bash
 
   - set_fact:
       description: |
