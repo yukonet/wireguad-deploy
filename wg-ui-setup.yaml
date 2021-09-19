@@ -320,7 +320,7 @@
         Your VPN server ready!
         
         URL: https://{{  public_ip.stdout }}/
-        Monitoring: https://{{  public_ip.stdout }}:8080/monitorix
+        Monitoring: http://{{  public_ip.stdout }}:8080/monitorix
         User: admin
         Password: {{ nginx_pass }}
 
