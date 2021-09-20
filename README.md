@@ -14,7 +14,7 @@ You should only download them and run and you will have ready VPN server.
 After installation you will receive a QR-code wich you whould scan and your VPN connectin is ready.
 
 
-ansible-wg.yaml - it is ansible playbook which will install and setup Wireguard, lightweight monitoring tool on the server, Web-UI from the repository (), and hide Web-UI behind NGINX with SSL and Basic-HTTP authorization. After installation you will have ready VPN server which allows easy create and administrate users from Web-UI admin panel.
+**ansible-wg.yaml** - it is ansible playbook which will install and setup Wireguard, lightweight monitoring tool on the server, Web-UI from the repository (), and hide Web-UI behind NGINX with SSL and Basic-HTTP authorization. After installation you will have ready VPN server which allows easy create and administrate users from Web-UI admin panel.
 
 -----
 
