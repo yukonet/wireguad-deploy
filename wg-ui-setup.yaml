@@ -153,10 +153,10 @@
       path: /etc/ssl/wg.com.csr
       privatekey_path: /etc/ssl/wg.com.pem
       country_name: UA
-      organization_name: linuxtips.xyz
-      email_address: support@linuxtips.xyz
-      common_name: wg.linuxtips.xyz
-      subject_alt_name: 'DNS:wg.linuxtips.xyz'
+      organization_name: yukonet.xyz
+      email_address: support@yukonet.xyz
+      common_name: wg.yukonet.xyz
+      subject_alt_name: 'DNS:wg.yukonet.xyz'
 
   - name: Generate a Self Signed OpenSSL certificate
     openssl_certificate:
