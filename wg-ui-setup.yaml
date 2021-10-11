@@ -1,0 +1,392 @@
+---
+######################################
+# ANSIBLE PLAYBOOK FOR WG INSTALLING #
+######################################
+
+
+- name: "Install Wireguard"
+  hosts: all
+  remote_user: root
+
+  vars_prompt:
+
+  - name: "interface"
+    prompt: "What interface should I use?"
+    default: "eth0"
+    private: no
+
+  - name: "uidir"
+    prompt: "Set directory to store UI files or use default (recommended)"
+    default: "/opt/wireguard-ui"
+    private: no
+
+  tasks:
+
+  - name: "Install wireguard"
+    ansible.builtin.apt:
+      name: wireguard
+      state: latest
+      update_cache: yes
+
+  - name: "Install docker-compose"
+    ansible.builtin.apt:
+      name: docker-compose
+      state: latest
+      update_cache: yes
+
+  - name: "Install docker"
+    ansible.builtin.apt:
+      name: docker.io
+      state: latest
+       
+  - name: "Create server keys"
+    shell: wg genkey | tee /etc/wireguard/server.priv | wg pubkey > /etc/wireguard/server.pub
+    args:
+      executable: /bin/bash
+
+  - name: "Register server public key"
+    shell: cat /etc/wireguard/server.pub
+    register: server_pub
+
+  - name: "Register server private key"
+    shell: cat /etc/wireguard/server.priv
+    register: server_priv
+
+  - name: "Get public IP address"
+    get_url: 
+      url: http://ifconfig.me
+      http_agent: curl
+      dest: /tmp/public_ip    
+
+  - name: "Register server public IP"
+    shell: cat /tmp/public_ip
+    register: public_ip
+
+  - name: "Create server config file"
+    copy:
+      dest: "/etc/wireguard/wg0.conf"
+      content: |
+          [Interface]
+          PrivateKey = {{ server_priv.stdout }}
+          Address = 10.0.0.1/24
+          PostUp = iptables -A FORWARD -i wg0 -j ACCEPT; iptables -t nat -A POSTROUTING -o {{ interface }} -j MASQUERADE; echo 1 > /proc/sys/net/ipv4/ip_forward
+          PostDown = iptables -D FORWARD -i wg0 -j ACCEPT; iptables -t nat -D POSTROUTING -o {{ interface }} -j MASQUERADE; echo 0 > /proc/sys/net/ipv4/ip_forward
+          ListenPort = 51820
+
+  - name: "Start WireGuard"
+    shell:
+      cmd: systemctl start wg-quick@wg0
+    args:
+      executable: /bin/bash
+
+  - name: "Enable WireGuard"
+    shell:
+      cmd: systemctl enable wg-quick@wg0
+    args:
+      executable: /bin/bash
+
+  - name: "Disable ufw"
+    shell:
+      cmd: ufw disable
+    args:
+      executable: /bin/bash
+
+  - name: "Get github files"
+    ansible.builtin.git:
+      repo: "https://github.com/ngoduykhanh/wireguard-ui.git"
+      dest: "{{ uidir }}/"
+     
+  - name: "First UI start for ctreating UI config files"
+    shell: docker-compose up -d
+    args: 
+      chdir: "{{ uidir }}/"
+
+  - name: "Change server private key in the UI config file"
+    replace:
+      path: "{{ uidir }}/db/server/keypair.json"
+      regexp: 'private_key(.*)$'
+      replace: "private_key\": \"{{ server_priv.stdout }}\"," 
+
+  - name: "Change server public key in the UI config file"
+    replace:
+      path: "{{ uidir }}/db/server/keypair.json"
+      regexp:  'public_key(.*)$'
+      replace: "public_key\": \"{{ server_pub.stdout }}\","
+
+  - name: "Change postup script in server's config"
+    replace:
+      path: "{{ uidir }}/db/server/interfaces.json"
+      regexp: 'post_up(.*)$'
+      replace: "post_up\": \"iptables -A FORWARD -i wg0 -j ACCEPT; iptables -t nat -A POSTROUTING -o {{ interface }} -j MASQUERADE; echo 1 > /proc/sys/net/ipv4/ip_forward\","
+
+  - name: "Change postdown script in server's config"
+    replace:
+      path: "{{ uidir }}/db/server/interfaces.json"
+      regexp:  'post_down(.*)$'
+      replace: "post_down\": \"iptables -D FORWARD -i wg0 -j ACCEPT; iptables -t nat -D POSTROUTING -o {{ interface }} -j MASQUERADE; echo 0 > /proc/sys/net/ipv4/ip_forward\""
+ 
+  - name: "Change IP in server's config"
+    replace:
+      path: "{{ uidir }}/db/server/interfaces.json"
+      regexp:  '([0-9]+)\.([0-9]+)\.([0-9]+)\.([0-9]+)(.*)$'
+      replace: "10.0.0.1/24\"" 
+
+  - name: "Add cronjob which restarts wg after changing wg0.conf"
+    ansible.builtin.cron:
+      name: "restart wg"
+      minute: "*/1"
+      job: "find /etc/wireguard/ -name wg0.conf -mmin -1 -exec systemctl restart wg-quick@wg0 \\; 2>&1" 
+
+  - name: "Install nginx"
+    ansible.builtin.apt:
+      name: nginx
+      state: latest
+      update_cache: yes
+
+  - name: Generate an OpenSSL private key with the default values (4096 bits, RSA)
+    openssl_privatekey:
+      path: /etc/ssl/wg.com.pem
+      type: RSA
+
+  - name: Generate an OpenSSL Certificate Signing Request
+    openssl_csr:
+      path: /etc/ssl/wg.com.csr
+      privatekey_path: /etc/ssl/wg.com.pem
+      country_name: UA
+      organization_name: yukonet.xyz
+      email_address: support@yukonet.xyz
+      common_name: wg.yukonet.xyz
+      subject_alt_name: 'DNS:wg.yukonet.xyz'
+
+  - name: Generate a Self Signed OpenSSL certificate
+    openssl_certificate:
+      path: /etc/ssl/wg.com.crt
+      privatekey_path: /etc/ssl/wg.com.pem
+      csr_path: /etc/ssl/wg.com.csr
+      provider: selfsigned
+
+  - set_fact:
+      nginx_pass: "{{ lookup('password', '/dev/null length=15 chars=ascii_letters') }}"
+
+  - name: "Create htpasswd for admin-ui"
+    copy:
+      dest: /etc/nginx/passwdfile
+      content: |
+        admin:{{ nginx_pass | password_hash }}
+
+  - name: "Change admin-ui login"
+    replace:
+      path: "{{ uidir }}/db/server/users.json"
+      regexp: 'username(.*)$'
+      replace: "username\": \"admin\","
+
+  - name: "Change admin-ui password"
+    replace:
+      path: "{{ uidir }}/db/server/users.json"
+      regexp: 'password(.*)$'
+      replace: "password\": \"{{ nginx_pass }}\""
+
+  - name: "Create proxy config file"
+    copy:
+      dest: /etc/nginx/sites-available/proxy.conf
+      content: |
+        upstream backend {
+            server 127.0.0.1:5000;
+        }
+
+        server {
+            listen 80 default_server;    
+            server_name _;   
+
+            location nginx_status {
+                stub_status on;
+                access_log   off;
+                allow 127.0.0.1; 
+                deny all;
+            }
+
+            location / {
+                return 301 https://$host$request_uri;
+            }
+        }
+        
+        server {
+            # listen 80;
+            listen 443 ssl; 
+
+            ssl_certificate     /etc/ssl/wg.com.crt;
+            ssl_certificate_key /etc/ssl/wg.com.pem;
+            ssl_protocols       TLSv1 TLSv1.1 TLSv1.2;
+            ssl_ciphers         HIGH:!aNULL:!MD5;
+
+            access_log /var/log/nginx/admin-gui.access.log;
+            error_log  /var/log/nginx/admin-gui.error.log;
+
+            server_name _;
+        
+            location / {
+                auth_basic "Admin area";
+                auth_basic_user_file /etc/nginx/passwdfile;
+                proxy_pass http://backend;
+            }
+        }
+
+  - name: "Unlink default nginx config"
+    shell: unlink /etc/nginx/sites-enabled/default
+    args:
+      executable: /bin/bash
+    ignore_errors: yes
+
+  - name: "Link proxy nginx config"
+    shell: ln -s /etc/nginx/sites-available/proxy.conf /etc/nginx/sites-enabled/proxy
+    args:
+      executable: /bin/bash
+    ignore_errors: yes
+
+  - name: "Start nginx"
+    shell:
+      cmd: systemctl start nginx
+    args:
+      executable: /bin/bash
+
+  - name: "Enable nginx"
+    shell:
+      cmd: systemctl enable nginx
+    args:
+      executable: /bin/bash        
+
+  - name: "Restart nginx"
+    shell:
+      cmd: systemctl restart nginx
+    args:
+      executable: /bin/bash   
+  
+  - name: Allow all connections from localhost
+    shell:
+      cmd: iptables -A INPUT -s 127.0.0.1/32 -j ACCEPT
+    args:
+      executable: /bin/bash
+
+  - name: Drop all connections to 5000 port
+    shell:
+      cmd: iptables -A INPUT -p tcp -m tcp --dport 5000 -j DROP
+    args:
+      executable: /bin/bash
+
+  - name: Save iptables rules to persistent file
+    shell:
+      cmd: iptables-save > /etc/iptables_rules_v4
+    args:
+      executable: /bin/bash
+
+  - name: "Add cronjob which load iptables-rules after restart"
+    ansible.builtin.cron:
+      name: "load iptables-rules after restart"
+      special_time: reboot
+      job: "/sbin/iptables-restore < /etc/iptables_rules_v4"
+
+  - name: "Update docker for autostart"
+    shell:
+      cmd: docker update --restart=always wgui
+    args:
+      executable: /bin/bash
+
+  - name: "Install monitorix"
+    ansible.builtin.apt:
+      name: monitorix
+      state: latest
+
+  - name: "Change monitorix config file (configuring graphs)"
+    replace:
+      path: "/etc/monitorix/monitorix.conf"
+      regexp: '(<graph_enable>[\s\S]*)</graph_enable>'
+      replace: |
+        <graph_enable>
+                system          = y
+                kern            = y
+                proc            = y
+                hptemp          = n
+                lmsens          = n
+                gensens         = n
+                ipmi            = n
+                ambsens         = n
+                nvidia          = n
+                disk            = n
+                fs              = y
+                zfs             = n
+                du              = y
+                net             = y
+                netstat         = y
+                tc              = n
+                libvirt         = n
+                process         = n
+                serv            = y
+                mail            = n
+                port            = y
+                user            = y
+                ftp             = n
+                apache          = n
+                nginx           = y
+                lighttpd        = n
+                mysql           = n
+                mongodb         = n
+                varnish         = n
+                pagespeed       = n
+                squid           = n
+                nfss            = n
+                nfsc            = n
+                bind            = n
+                unbound         = n
+                ntp             = n
+                chrony          = n
+                fail2ban        = y
+                icecast         = n
+                raspberrypi     = n
+                phpapc          = n
+                memcached       = n
+                phpfpm          = n
+                apcupsd         = n
+                nut             = n
+                wowza           = n
+                int             = y
+                verlihub        = n
+        </graph_enable>
+
+  - name: "Change monitorix config file (Change hostname)"
+    replace:
+      path: "/etc/monitorix/monitorix.conf"
+      regexp: '^title(.*)$'
+      replace: "title = Monitoring\nenable_hourly_view = y"
+      
+  - name: "Change monitorix config file (enable htpasswd)"
+    replace:
+      path: "/etc/monitorix/monitorix.conf"
+      regexp: '(<auth>[\s\S]*)</auth>'
+      replace: |
+        <auth>
+                enabled = y
+                msg = Monitorix: Restricted access
+                htpasswd = /etc/nginx/passwdfile
+        </auth>
+
+  - name: "Restart monitorix"
+    shell:
+      cmd: systemctl restart monitorix
+    args:
+      executable: /bin/bash
+
+  - set_fact:
+      description: |
+
+        Your VPN server ready!
+        
+        URL: https://{{  public_ip.stdout }}/
+        Monitoring: http://{{  public_ip.stdout }}:8080/monitorix
+        User: admin
+        Password: {{ nginx_pass }}
+
+  - pause:
+      seconds: 1
+      prompt: '{{ description }}'
+
+
