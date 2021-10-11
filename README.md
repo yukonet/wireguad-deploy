@@ -19,7 +19,7 @@ You should have server with installed clear Ubuntu 20.04 OS on it.
 #### **shell-wg.sh**
 
 - Download the script:
-```    ```
+``` wget https://raw.githubusercontent.com/yukonet/wireguad-deploy/35f05cc0d5baee8375b2486769bbf004998f0218/shell-wg.sh ```
 
 - Make it executable:
 ```chmod +x shell-wg.sh```
@@ -30,12 +30,12 @@ You should have server with installed clear Ubuntu 20.04 OS on it.
 - Run
 ```./shell-wg.sh```
 
-At the end if installation you should receive a QR-code with user`s config file, just scan it with your Wireguard app.
+At the end of installation you should receive a QR-code with user`s config file, just scan it with your Wireguard app.
 
 #### **ansible-wg.yaml**
 
 - Download the file:
-``` ```
+``` wget https://raw.githubusercontent.com/yukonet/wireguad-deploy/35f05cc0d5baee8375b2486769bbf004998f0218/ansible-wg.yaml```
 
 - Create new ansible hosts file with your server`s IP address(es):
 ```echo your_server_ip_address > hosts ```
